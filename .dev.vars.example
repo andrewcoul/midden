@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local development. On Cloudflare, set these as Worker secrets.
+# All are optional. With no sign-in method set, midden shows a setup page and no files.
+
+# Password sign-in. Leave it empty to use only Cloudflare Access.
+MIDDEN_PASSWORD=

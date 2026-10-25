@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "midden",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry",
+  "observability": { "enabled": true },
+  // Variables that you set in the Cloudflare dashboard stay after the next deploy.
+  "keep_vars": true,
+  // The bindings have no IDs or names. `wrangler dev` makes local copies in .wrangler/state.
+  // The first `wrangler deploy` (or the Deploy to Cloudflare button) creates the database and the
+  // bucket in your account. midden applies the files in migrations/ itself when it starts.
+  "d1_databases": [{ "binding": "DB", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "FILES" }]
+}
