@@ -1,15 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Download, Eye, LayoutGrid, List, Lock } from "lucide-react";
+import { Download, Eye, Lock } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Logo } from "@/components/squirrel";
 import { describe, EmptyFolder, FileList } from "@/components/file-list";
 import { FileMark } from "@/components/file-mark";
-import { PillTabs } from "@/components/pill-tabs";
 import { Preview } from "@/components/preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useView } from "@/hooks/use-view";
 import { api, shareContentUrl } from "@/lib/api";
 import { canPreview, formatDate } from "@/lib/format";
 import type { Node, PublicShare } from "@/lib/types";
@@ -135,7 +133,6 @@ function SharedFile({ token, node }: { token: string; node: Node }) {
 function SharedFolder({ token, share }: { token: string; share: PublicShare }) {
   const navigate = useNavigate();
   const { f, file } = Route.useSearch();
-  const [view, setView] = useView("midden:share-view");
   const folderId = f ?? share.root!.id;
   const q = useQuery({ queryKey: ["public", token, folderId], queryFn: () => api.publicFolder(token, folderId) });
   const data = q.data;
@@ -170,14 +167,6 @@ function SharedFolder({ token, share }: { token: string; share: PublicShare }) {
               {data ? `${data.children.length} item${data.children.length === 1 ? "" : "s"}` : " "}
             </p>
           </div>
-          <PillTabs
-            value={view}
-            onChange={setView}
-            options={[
-              { value: "list", label: <List className="size-4" />, title: "List" },
-              { value: "grid", label: <LayoutGrid className="size-4" />, title: "Grid" },
-            ]}
-          />
         </div>
         {data && data.children.length === 0 ? (
           <EmptyFolder>
@@ -186,8 +175,6 @@ function SharedFolder({ token, share }: { token: string; share: PublicShare }) {
         ) : (
           <FileList
             items={data?.children ?? []}
-            view={view}
-            contentUrl={url}
             onOpen={(n) =>
               n.kind === "folder"
                 ? navigate({ to: "/s/$token", params: { token }, search: { f: n.id } })

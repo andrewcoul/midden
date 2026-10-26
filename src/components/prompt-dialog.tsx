@@ -8,6 +8,7 @@ export function PromptDialog({
   open,
   title,
   initial = "",
+  placeholder,
   confirm,
   onSubmit,
   onClose,
@@ -15,6 +16,7 @@ export function PromptDialog({
   open: boolean;
   title: string;
   initial?: string;
+  placeholder?: string;
   confirm: string;
   onSubmit: (value: string) => Promise<unknown> | void;
   onClose: () => void;
@@ -54,7 +56,7 @@ export function PromptDialog({
       <DialogContent className="sm:max-w-[400px]" showCloseButton={false}>
         <form onSubmit={submit} className="flex flex-col gap-6">
           <DialogTitle>{title}</DialogTitle>
-          <Input ref={input} value={value} onChange={(e) => setValue(e.target.value)} />
+          <Input ref={input} value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} />
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancel

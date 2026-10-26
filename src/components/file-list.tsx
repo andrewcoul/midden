@@ -2,12 +2,9 @@ import type { ReactNode } from "react";
 import { FileMark } from "@/components/file-mark";
 import { Mascot } from "@/components/squirrel";
 import type { UploadItem } from "@/hooks/use-uploads";
-import type { ContentUrl } from "@/lib/api";
 import { fileKind, formatBytes, formatDate, KIND_LABEL } from "@/lib/format";
 import type { Node } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-export type View = "list" | "grid";
 
 export function describe(node: Node) {
   const kind = fileKind(node);
@@ -20,32 +17,25 @@ export function describe(node: Node) {
 
 export function FileList({
   items,
-  view,
   uploads = [],
-  contentUrl,
+  selectedId,
+  onSelect,
   onOpen,
   actions,
   meta,
 }: {
   items: Node[];
-  view: View;
   uploads?: UploadItem[];
-  contentUrl: ContentUrl;
+  selectedId?: string;
+  /** One click selects. Without onSelect, one click opens. */
+  onSelect?: (node: Node) => void;
+  /** Double-click or Enter opens: a folder goes in, a file shows full screen. */
   onOpen: (node: Node) => void;
   /** Buttons that show on hover, e.g. download / share / menu. */
   actions?: (node: Node) => ReactNode;
   /** Second line under the name. Defaults to type and size. */
   meta?: (node: Node) => ReactNode;
 }) {
-  if (view === "grid") {
-    return (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-6">
-        {items.map((node) => (
-          <GridCard key={node.id} node={node} contentUrl={contentUrl} onOpen={onOpen} actions={actions?.(node)} />
-        ))}
-      </div>
-    );
-  }
   return (
     <div className="flex flex-col">
       {uploads.map((u) => (
@@ -56,22 +46,33 @@ export function FileList({
           key={node.id}
           role="button"
           tabIndex={0}
-          onClick={() => onOpen(node)}
+          aria-pressed={onSelect ? node.id === selectedId : undefined}
+          onClick={() => (onSelect ?? onOpen)(node)}
+          onDoubleClick={() => onSelect && onOpen(node)}
           onKeyDown={(e) => e.key === "Enter" && onOpen(node)}
-          className="group/row flex h-16 cursor-default items-center gap-4 rounded-xl px-3 outline-none hover:bg-accent focus-visible:bg-accent has-[[data-state=open]]:bg-accent"
+          className={cn(
+            "group/row flex h-16 cursor-default items-center gap-4 rounded-xl px-3 outline-none select-none hover:bg-accent/60 focus-visible:bg-accent has-[[data-state=open]]:bg-accent",
+            node.id === selectedId && "bg-accent hover:bg-accent",
+          )}
         >
           <FileMark node={node} />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-[15px] leading-6 font-medium">{node.name}</span>
             <span className="truncate text-[13px] leading-4 text-muted-foreground">{meta ? meta(node) : describe(node)}</span>
           </div>
-          <span className="w-28 shrink-0 text-right text-[13px] text-subtle group-hover/row:hidden group-focus-visible/row:hidden group-has-[[data-state=open]]/row:hidden">
+          <span
+            className={cn(
+              "w-28 shrink-0 text-right text-[13px] text-subtle",
+              actions && "group-hover/row:hidden group-focus-visible/row:hidden group-has-[[data-state=open]]/row:hidden",
+            )}
+          >
             {formatDate(node.updatedAt)}
           </span>
           {actions && (
             <div
               className="hidden shrink-0 items-center gap-1 group-hover/row:flex group-focus-visible/row:flex group-has-[[data-state=open]]/row:flex"
               onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             >
               {actions(node)}
@@ -79,44 +80,6 @@ export function FileList({
           )}
         </div>
       ))}
-    </div>
-  );
-}
-
-function GridCard({
-  node,
-  contentUrl,
-  onOpen,
-  actions,
-}: {
-  node: Node;
-  contentUrl: ContentUrl;
-  onOpen: (node: Node) => void;
-  actions?: ReactNode;
-}) {
-  const image = fileKind(node) === "image";
-  return (
-    <div className="group/card relative flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={() => onOpen(node)}
-        className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl bg-app shadow-[inset_0_0_0_1px_rgb(0_0_0/6%)] outline-none transition-shadow hover:shadow-[inset_0_0_0_1px_rgb(0_0_0/6%),0_12px_24px_-12px_rgb(0_0_0/30%)] focus-visible:ring-2 focus-visible:ring-ring/20"
-      >
-        {image ? (
-          <img src={contentUrl(node)} alt="" loading="lazy" className="size-full object-cover" />
-        ) : (
-          <FileMark node={node} size={48} />
-        )}
-      </button>
-      {actions && (
-        <div className="absolute top-3 right-3 hidden gap-1 group-hover/card:flex has-[[data-state=open]]:flex">{actions}</div>
-      )}
-      <div className="flex min-w-0 flex-col px-1">
-        <span className="truncate text-[15px] leading-6 font-medium">{node.name}</span>
-        <span className="truncate text-[13px] leading-4 text-muted-foreground">
-          {node.kind === "folder" ? describe(node) : formatBytes(node.size)}
-        </span>
-      </div>
     </div>
   );
 }

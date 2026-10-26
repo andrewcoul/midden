@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { FolderView } from "@/components/folder-view";
+import { validateFolderSearch } from "@/lib/folder-search";
 
 export const Route = createFileRoute("/_app/f/$folderId")({
-  validateSearch: (s: Record<string, unknown>): { file?: string } => (typeof s.file === "string" ? { file: s.file } : {}),
+  validateSearch: validateFolderSearch,
   component: FolderPage,
 });
 
 function FolderPage() {
   const { folderId } = Route.useParams();
-  const { file } = Route.useSearch();
-  return <FolderView key={folderId} folderId={folderId} fileId={file} />;
+  const { sel, file } = Route.useSearch();
+  return <FolderView key={folderId} folderId={folderId} selectedId={sel} fileId={file} />;
 }

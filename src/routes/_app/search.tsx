@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { EmptyFolder, FileList } from "@/components/file-list";
 import { Page } from "@/components/page";
-import { api, ownerContentUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { describe } from "@/components/file-list";
 
 export const Route = createFileRoute("/_app/search")({
@@ -32,13 +32,11 @@ function SearchPage() {
       ) : (
         <FileList
           items={items}
-          view="list"
-          contentUrl={ownerContentUrl}
           meta={(n) => `${describe(n)} · in ${n.parentName}`}
           onOpen={(n) =>
             n.kind === "folder"
               ? navigate({ to: "/f/$folderId", params: { folderId: n.id } })
-              : navigate({ to: "/f/$folderId", params: { folderId: n.parentId ?? "root" }, search: { file: n.id } })
+              : navigate({ to: "/f/$folderId", params: { folderId: n.parentId ?? "root" }, search: { sel: n.id } })
           }
         />
       )}

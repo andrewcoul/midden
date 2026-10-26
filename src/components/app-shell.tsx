@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useRouterState } from "@tanstack/react-router";
-import { FolderPlus, FolderUp, HardDrive, Link2, LogOut, Plus, Search, Trash2, Upload } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
-import { Logo } from "@/components/squirrel";
+import { FolderPlus, FolderUp, Globe, HardDrive, Link2, LogOut, Plus, Search, Trash2, Upload } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FileMark } from "@/components/file-mark";
 import { useItemActions } from "@/components/item-actions";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,64 +35,82 @@ export function useCurrentFolderId() {
   return params.folderId ?? "root";
 }
 
-function Sidebar() {
-  const navigate = useNavigate();
+/** The New menu: new folder, uploads, and save from link. The child is the trigger. */
+export function NewMenu({ children, align = "start" }: { children: ReactNode; align?: "start" | "end" }) {
   const folderId = useCurrentFolderId();
   const actions = useItemActions();
   const uploads = useUploads();
   const filesInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+        <DropdownMenuContent align={align} className="w-56">
+          <DropdownMenuItem onSelect={() => actions.newFolder(folderId)}>
+            <FolderPlus /> New folder
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => filesInput.current?.click()}>
+            <Upload /> Upload files
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => folderInput.current?.click()}>
+            <FolderUp /> Upload folder
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => actions.saveLink(folderId)}>
+            <Globe /> Save from link
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <input
+        ref={filesInput}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          uploads.add(filesFromInput(e.target.files), folderId);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={folderInput}
+        type="file"
+        hidden
+        {...{ webkitdirectory: "" }}
+        onChange={(e) => {
+          uploads.add(filesFromInput(e.target.files), folderId);
+          e.target.value = "";
+        }}
+      />
+    </>
+  );
+}
+
+function Sidebar() {
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const me = useQuery({ queryKey: ["me"], queryFn: api.me, staleTime: Infinity });
 
+  // "/" jumps to search from anywhere outside a text field.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement;
+      if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(t.tagName) && !t.isContentEditable) {
+        e.preventDefault();
+        document.getElementById("global-search")?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <aside className="hidden w-72 shrink-0 flex-col gap-4 bg-app p-4 shadow-[inset_-1px_0_0_var(--border)] md:flex">
-      <div className="flex h-10 items-center gap-2 px-2">
-        <Logo size={32} />
-        <span className="flex-1 text-lg font-semibold tracking-[-0.03em]">midden</span>
-        <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-full hover:bg-accent data-[state=open]:bg-accent">
-                <Plus className="size-[18px]" strokeWidth={1.75} />
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>New</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onSelect={() => actions.newFolder(folderId)}>
-              <FolderPlus /> New folder
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => filesInput.current?.click()}>
-              <Upload /> Upload files
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => folderInput.current?.click()}>
-              <FolderUp /> Upload folder
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <input
-          ref={filesInput}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => {
-            uploads.add(filesFromInput(e.target.files), folderId);
-            e.target.value = "";
-          }}
-        />
-        <input
-          ref={folderInput}
-          type="file"
-          hidden
-          {...{ webkitdirectory: "" }}
-          onChange={(e) => {
-            uploads.add(filesFromInput(e.target.files), folderId);
-            e.target.value = "";
-          }}
-        />
-      </div>
+      <NewMenu>
+        <Button size="lg" className="w-full">
+          <Plus /> New
+        </Button>
+      </NewMenu>
 
       <form
         onSubmit={(e) => {
@@ -200,7 +218,7 @@ function Recent() {
             key={n.id}
             to="/f/$folderId"
             params={{ folderId: n.parentId ?? "root" }}
-            search={{ file: n.id }}
+            search={{ sel: n.id }}
             className="flex h-14 items-center gap-3 rounded-xl px-2 hover:bg-accent"
           >
             <FileMark node={n} size={32} />

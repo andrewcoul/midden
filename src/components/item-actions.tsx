@@ -20,6 +20,8 @@ interface Actions {
   trash: (node: Node) => void;
   download: (node: Node) => void;
   newFolder: (parentId: string) => void;
+  /** Asks for a URL and saves that file in the folder. */
+  saveLink: (parentId: string) => void;
 }
 
 const ActionsContext = createContext<Actions | null>(null);
@@ -30,6 +32,7 @@ export function ItemActionsProvider({ children }: { children: ReactNode }) {
   const [renaming, setRenaming] = useState<Node | null>(null);
   const [moving, setMoving] = useState<Node | null>(null);
   const [newIn, setNewIn] = useState<string | null>(null);
+  const [linkIn, setLinkIn] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["folder"] });
@@ -73,6 +76,7 @@ export function ItemActionsProvider({ children }: { children: ReactNode }) {
         a.click();
       },
       newFolder: setNewIn,
+      saveLink: setLinkIn,
     }),
     [trash],
   );
@@ -106,6 +110,25 @@ export function ItemActionsProvider({ children }: { children: ReactNode }) {
         onSubmit={async (name) => {
           await api.createFolder(newIn!, name);
           qc.invalidateQueries({ queryKey: ["folder", newIn] });
+        }}
+      />
+      <PromptDialog
+        open={!!linkIn}
+        title="Save from link"
+        confirm="Save"
+        placeholder="https://example.com/photo.jpg"
+        onClose={() => setLinkIn(null)}
+        onSubmit={async (url) => {
+          try {
+            const node = await api.importUrl(linkIn!, url);
+            toast.success(`Saved ${node.name}`);
+            qc.invalidateQueries({ queryKey: ["folder", linkIn] });
+            qc.invalidateQueries({ queryKey: ["recent"] });
+            qc.invalidateQueries({ queryKey: ["usage"] });
+          } catch (e) {
+            toast.error((e as Error).message);
+            throw e;
+          }
         }}
       />
       <MoveDialog
