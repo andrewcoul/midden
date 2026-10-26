@@ -1,10 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Eye, EyeOff } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Mascot } from "@/components/squirrel";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api";
 import type { Me } from "@/lib/types";
 
 const SETUP_GUIDE = "https://github.com/andrewcoul/midden#set-up";
@@ -12,8 +9,7 @@ const SETUP_GUIDE = "https://github.com/andrewcoul/midden#set-up";
 /** The screen for a visitor who is not signed in. It depends on the sign-in methods that are set up. */
 export function SignIn({ me }: { me: Me | null }) {
   if (!me) return <StartError />;
-  if (me.signIn.password) return <PasswordSignIn />;
-  if (me.signIn.access) return <AccessSignIn denied={me.denied} />;
+  if (me.accessReady) return <AccessSignIn denied={me.denied} />;
   return <Setup detected={me.detected} />;
 }
 
@@ -91,14 +87,11 @@ function Setup({ detected }: { detected: Me["detected"] }) {
           <Mascot size={56} />
           <div className="flex flex-col gap-1">
             <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em]">Set up midden</h1>
-            <p className="text-[15px] text-muted-foreground">Pick how you sign in. Until then, midden shows no files.</p>
+            <p className="text-[15px] text-muted-foreground">Turn on Cloudflare Access to open your files.</p>
           </div>
         </div>
         <section className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[17px] leading-6 font-semibold tracking-[-0.02em]">Sign in with Cloudflare</h2>
-            <span className="stone inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium">Recommended</span>
-          </div>
+          <h2 className="text-[17px] leading-6 font-semibold tracking-[-0.02em]">Sign in with Cloudflare</h2>
           <ol className="flex flex-col gap-3">
             {steps.map((step, i) => (
               <li key={step} className="flex items-start gap-3 text-[15px] leading-6">
@@ -116,13 +109,6 @@ function Setup({ detected }: { detected: Me["detected"] }) {
               <CopyRow name="MIDDEN_ACCESS_AUD" value={detected.aud} />
             </div>
           )}
-        </section>
-        <section className="flex flex-col gap-2 pt-6 shadow-[inset_0_1px_0_var(--border)]">
-          <h2 className="text-[17px] leading-6 font-semibold tracking-[-0.02em]">Or use a password</h2>
-          <p className="text-[15px] text-muted-foreground">
-            Add a Worker secret named <code className="font-mono text-sm text-foreground">MIDDEN_PASSWORD</code>. You can use
-            both.
-          </p>
         </section>
       </div>
     </Screen>
@@ -150,63 +136,5 @@ function CopyRow({ name, value }: { name: string; value: string }) {
         {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
       </button>
     </div>
-  );
-}
-
-function PasswordSignIn() {
-  const qc = useQueryClient();
-  const [password, setPassword] = useState("");
-  const [show, setShow] = useState(false);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await api.login(password);
-      await qc.invalidateQueries({ queryKey: ["me"] });
-    } catch (err) {
-      setError((err as Error).message);
-      setPassword("");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Screen>
-      <form onSubmit={submit} className="window flex w-full max-w-[400px] flex-col items-center gap-8 rounded-3xl px-8 pt-10 pb-8">
-        <Title title="Welcome back">Enter your password to open midden.</Title>
-        <div className="flex w-full flex-col gap-3">
-          <div className="relative">
-            <Input
-              type={show ? "text" : "password"}
-              autoFocus
-              autoComplete="current-password"
-              aria-label="Password"
-              aria-invalid={!!error}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pr-11"
-            />
-            <button
-              type="button"
-              aria-label={show ? "Hide password" : "Show password"}
-              onClick={() => setShow((s) => !s)}
-              className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-subtle hover:text-foreground"
-            >
-              {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
-          </div>
-          {error && <p className="px-1 text-sm text-destructive">{error}</p>}
-          <Button type="submit" size="lg" disabled={!password || busy}>
-            Continue
-          </Button>
-        </div>
-      </form>
-    </Screen>
   );
 }

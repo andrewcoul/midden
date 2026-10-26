@@ -17,7 +17,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
   const data = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
-    if (res.status === 401 && !path.startsWith("/api/s/") && path !== "/api/login") {
+    if (res.status === 401 && !path.startsWith("/api/s/")) {
       window.dispatchEvent(new Event("midden:logged-out"));
     }
     throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);
@@ -27,8 +27,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
-  login: (password: string) => request("POST", "/api/login", { password }),
-  logout: () => request("POST", "/api/logout"),
 
   folder: (id: string) => request<FolderListing>("GET", `/api/folders/${id}`),
   node: (id: string) => request<{ node: Node; path: FolderListing["path"] }>("GET", `/api/nodes/${id}`),

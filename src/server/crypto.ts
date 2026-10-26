@@ -38,10 +38,6 @@ export async function checkToken(secret: string, purpose: string, token: string 
   return safeEqual(sig, await hmac(secret, `${purpose}:${exp}`));
 }
 
-export async function checkPassword(secret: string, input: string, expected: string) {
-  return safeEqual(await hmac(secret, `pw:${input}`), await hmac(secret, `pw:${expected}`));
-}
-
 // Workers limits PBKDF2 to 100k iterations.
 const PBKDF2_ITERATIONS = 100_000;
 

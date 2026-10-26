@@ -20,9 +20,6 @@
   },
   "cloudflare": {
     "bindings": {
-      "MIDDEN_PASSWORD": {
-        "description": "Optional password for sign-in. Leave it empty if you will use **Cloudflare Access** (recommended). midden shows the Access steps after it deploys."
-      },
       "DB": {
         "description": "Folder and file names, share links, and settings. midden creates its tables when it starts."
       },

@@ -31,11 +31,12 @@ export interface BlobStore {
 }
 
 export interface Config {
-  /** Password sign-in is off when this is null. */
-  password: string | null;
+  /** Signs share-link unlock cookies. */
   sessionSecret: string;
   /** Access users that can sign in. Null lets in every user that the Access policy lets in. */
   allowedEmails: string[] | null;
+  /** Local development only: the user that is signed in without Access. */
+  devEmail: string | null;
 }
 
 export interface Deps {

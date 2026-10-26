@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { FolderPlus, FolderUp, HardDrive, Link2, LogOut, Plus, Search, Trash2, Upload } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
@@ -37,7 +37,6 @@ export function useCurrentFolderId() {
 
 function Sidebar() {
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const folderId = useCurrentFolderId();
   const actions = useItemActions();
   const uploads = useUploads();
@@ -123,24 +122,21 @@ function Sidebar() {
 
       <div className="flex h-10 items-center gap-2 px-2">
         <Storage />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label="Log out"
-              className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
-              onClick={async () => {
-                await api.logout();
-                qc.clear();
-                // Access keeps its own session. Its logout path ends that session too.
-                window.location.href = me.data?.method === "access" ? "/cdn-cgi/access/logout" : "/";
-              }}
-            >
-              <LogOut className="size-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{me.data?.email ? `Log out ${me.data.email}` : "Log out"}</TooltipContent>
-        </Tooltip>
+        {me.data?.method === "access" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* Cloudflare Access ends its session at this path. */}
+              <a
+                href="/cdn-cgi/access/logout"
+                aria-label="Log out"
+                className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <LogOut className="size-4" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent>Log out {me.data.email}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </aside>
   );

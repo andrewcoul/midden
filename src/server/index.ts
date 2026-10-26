@@ -10,11 +10,11 @@ import type { Db, Deps } from "./types";
 // All settings are optional. Set them as Worker variables or secrets (see README.md).
 type Vars = Partial<
   Record<
-    | "MIDDEN_PASSWORD"
     | "MIDDEN_SESSION_SECRET"
     | "MIDDEN_ACCESS_TEAM_DOMAIN"
     | "MIDDEN_ACCESS_AUD"
-    | "MIDDEN_ALLOWED_EMAILS",
+    | "MIDDEN_ALLOWED_EMAILS"
+    | "MIDDEN_DEV_EMAIL",
     string
   >
 >;
@@ -38,12 +38,14 @@ async function init(): Promise<Deps> {
     db,
     blobs: r2BlobStore(env.FILES),
     config: {
-      password: vars.MIDDEN_PASSWORD || null,
       sessionSecret:
         (vars.MIDDEN_SESSION_SECRET ?? "").length >= 32
           ? vars.MIDDEN_SESSION_SECRET!
           : await setting(db, "session_secret", () => randomId(32)),
       allowedEmails: emails?.length ? emails : null,
+      // `vite dev` has no Access in front of it, so it signs in this test user. Set
+      // MIDDEN_DEV_EMAIL to an empty value in .dev.vars to see the signed-out screens.
+      devEmail: import.meta.env.DEV ? (vars.MIDDEN_DEV_EMAIL ?? "dev@localhost") || null : null,
     },
     verifyAccess: team && aud ? accessVerifier(team, aud) : null,
   };

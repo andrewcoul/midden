@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { getCookie, setCookie } from "hono/cookie";
 import { ACCESS_HEADER, peekAccess } from "./access";
-import { checkPassword, checkToken, hashPassword, hmac, makeToken, randomId, verifyPassword } from "./crypto";
+import { checkToken, hashPassword, makeToken, randomId, verifyPassword } from "./crypto";
 import { contentDisposition, guessMime, parseRange, servedType, validateName } from "./files";
 import {
   HttpError,
@@ -28,8 +28,6 @@ import type { Deps, NodeRow, ShareRow, UploadRow } from "./types";
 export const PART_SIZE = 10 * 1024 * 1024;
 // Cloudflare limits a request body to 100 MB on the free plan.
 const MAX_SINGLE_UPLOAD = 95 * 1024 * 1024;
-const SESSION_COOKIE = "midden_session";
-const SESSION_TTL = 30 * 24 * 3600 * 1000;
 const SHARE_UNLOCK_TTL = 12 * 3600 * 1000;
 const CSRF_HEADER = "x-requested-with";
 
@@ -39,8 +37,9 @@ type C = Context<Env>;
 const isHttps = (c: C) =>
   new URL(c.req.url).protocol === "https:" || c.req.header("x-forwarded-proto") === "https";
 
-const MAX_LOGIN_FAILURES = 10;
-const LOGIN_LOCKOUT = 15 * 60 * 1000;
+// Wrong share-link passwords from one address before a lockout.
+const MAX_PASSWORD_FAILURES = 10;
+const PASSWORD_LOCKOUT = 15 * 60 * 1000;
 const clientIp = (c: C) =>
   c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
 
@@ -87,11 +86,6 @@ async function serveFile(c: C, node: NodeRow, download: boolean) {
   return c.body(stream, 200, headers);
 }
 
-// A session is good only for the password that made it. A new password signs out all sessions.
-async function sessionPurpose(config: Deps["config"]) {
-  return `session:${(await hmac(config.sessionSecret, `pw:${config.password}`)).slice(0, 16)}`;
-}
-
 /** The Access user of the request, after the signature check. Null if there is no valid token. */
 async function accessEmail(c: C) {
   const { verifyAccess } = c.var.deps;
@@ -99,14 +93,37 @@ async function accessEmail(c: C) {
   return verifyAccess && token ? verifyAccess(token) : null;
 }
 
-async function currentUser(c: C): Promise<{ method: "access" | "password"; email: string | null } | null> {
+async function currentUser(c: C): Promise<{ method: "access" | "dev"; email: string } | null> {
   const { config } = c.var.deps;
   const email = await accessEmail(c);
   if (email && (!config.allowedEmails || config.allowedEmails.includes(email))) return { method: "access", email };
-  if (config.password && (await checkToken(config.sessionSecret, await sessionPurpose(config), getCookie(c, SESSION_COOKIE)))) {
-    return { method: "password", email: null };
-  }
+  // Only `vite dev` sets devEmail. A production build never has it.
+  if (config.devEmail) return { method: "dev", email: config.devEmail };
   return null;
+}
+
+/** Stops a guess loop on share-link passwords. Failures are in D1, so all Worker instances agree. */
+async function limitPasswordGuesses(c: C, check: () => Promise<boolean>) {
+  const { db } = c.var.deps;
+  const ip = clientIp(c);
+  const now = Date.now();
+  const entry = await db.first<{ count: number; until: number }>("SELECT count, until FROM login_failures WHERE ip = ?", ip);
+  if (entry && entry.until > now && entry.count >= MAX_PASSWORD_FAILURES) {
+    throw new HttpError(429, "Too many attempts. Try again later.");
+  }
+  if (await check()) {
+    await db.run("DELETE FROM login_failures WHERE ip = ? OR until < ?", ip, now);
+    return;
+  }
+  const count = entry && entry.until > now ? entry.count + 1 : 1;
+  await db.run(
+    "INSERT INTO login_failures (ip, count, until) VALUES (?, ?, ?) ON CONFLICT (ip) DO UPDATE SET count = excluded.count, until = excluded.until",
+    ip,
+    count,
+    now + PASSWORD_LOCKOUT,
+  );
+  await new Promise((r) => setTimeout(r, 500));
+  throw new HttpError(401, "Wrong password");
 }
 
 export function createApp(getDeps: (c: C) => Deps | Promise<Deps>) {
@@ -130,47 +147,8 @@ export function createApp(getDeps: (c: C) => Deps | Promise<Deps>) {
     await next();
   });
 
-  // ---------- Login ----------
-
-  app.post("/api/login", async (c) => {
-    const { config, db } = c.var.deps;
-    if (!config.password) throw new HttpError(404, "Password sign-in is off");
-    const ip = clientIp(c);
-    const now = Date.now();
-    const entry = await db.first<{ count: number; until: number }>("SELECT count, until FROM login_failures WHERE ip = ?", ip);
-    if (entry && entry.until > now && entry.count >= MAX_LOGIN_FAILURES) {
-      throw new HttpError(429, "Too many attempts. Try again later.");
-    }
-    const { password } = await jsonBody<{ password: string }>(c);
-    if (typeof password !== "string" || !(await checkPassword(config.sessionSecret, password, config.password))) {
-      const count = entry && entry.until > now ? entry.count + 1 : 1;
-      await db.run(
-        "INSERT INTO login_failures (ip, count, until) VALUES (?, ?, ?) ON CONFLICT (ip) DO UPDATE SET count = excluded.count, until = excluded.until",
-        ip,
-        count,
-        now + LOGIN_LOCKOUT,
-      );
-      await new Promise((r) => setTimeout(r, 500));
-      throw new HttpError(401, "Wrong password");
-    }
-    await db.run("DELETE FROM login_failures WHERE ip = ? OR until < ?", ip, now);
-    setCookie(c, SESSION_COOKIE, await makeToken(config.sessionSecret, await sessionPurpose(config), SESSION_TTL), {
-      httpOnly: true,
-      secure: isHttps(c),
-      sameSite: "Lax",
-      path: "/",
-      maxAge: SESSION_TTL / 1000,
-    });
-    return c.json({ ok: true });
-  });
-
-  app.post("/api/logout", (c) => {
-    deleteCookie(c, SESSION_COOKIE, { path: "/" });
-    return c.json({ ok: true });
-  });
-
   app.get("/api/me", async (c) => {
-    const { config, verifyAccess } = c.var.deps;
+    const { verifyAccess } = c.var.deps;
     const user = await currentUser(c);
     const token = c.req.header(ACCESS_HEADER);
     const email = user ? null : await accessEmail(c);
@@ -178,7 +156,7 @@ export function createApp(getDeps: (c: C) => Deps | Promise<Deps>) {
       authenticated: !!user,
       method: user?.method ?? null,
       email: user?.email ?? null,
-      signIn: { password: !!config.password, access: !!verifyAccess },
+      accessReady: !!verifyAccess,
       // Access signed in this user, but the email is not in MIDDEN_ALLOWED_EMAILS.
       denied: email,
       // Access is in front of midden, but midden does not know the team yet. The setup page shows
@@ -227,14 +205,9 @@ export function createApp(getDeps: (c: C) => Deps | Promise<Deps>) {
   app.post("/api/s/:token/unlock", async (c) => {
     const { share } = await loadShare(c);
     const { password } = await jsonBody<{ password: string }>(c);
-    if (
-      !share.password_hash ||
-      typeof password !== "string" ||
-      !(await verifyPassword(password, share.password_hash))
-    ) {
-      await new Promise((r) => setTimeout(r, 500));
-      throw new HttpError(401, "Wrong password");
-    }
+    const hash = share.password_hash;
+    if (!hash) throw new HttpError(400, "This link has no password");
+    await limitPasswordGuesses(c, async () => typeof password === "string" && verifyPassword(password, hash));
     const token = await makeToken(c.var.deps.config.sessionSecret, `share:${share.id}`, SHARE_UNLOCK_TTL);
     setCookie(c, `midden_share_${share.id}`, token, {
       httpOnly: true,

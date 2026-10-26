@@ -22,13 +22,13 @@ plan: a Worker for the app, D1 for folder and file names, and R2 for the file da
    GitHub account, creates the D1 database and the R2 bucket, and deploys midden. Each push to your
    copy deploys again.
 2. Open your midden at `https://midden.<your-subdomain>.workers.dev`. It shows a setup page and no
-   files until you pick a sign-in method.
-3. Pick a sign-in method:
-   - **Cloudflare Access (recommended).** You sign in with your Cloudflare login, or with any identity
-     provider that Access supports. Access stops other visitors before they get to midden.
-   - **A password.** Add a Worker secret named `MIDDEN_PASSWORD`.
+   files until you turn on Cloudflare Access (see below).
 
-midden creates its database tables when it starts. You do not need to run migrations.
+The deploy asks for no secrets. midden creates its database tables when it starts, so you do not
+need to run migrations.
+
+midden has no password of its own. Cloudflare Access signs you in, with your Cloudflare login or with
+any identity provider that Access supports. Access stops other visitors before they get to midden.
 
 ### Sign in with Cloudflare Access
 
@@ -57,7 +57,8 @@ for these paths on the same hostname, with a **Bypass** policy for **Everyone**:
 /favicon.svg
 ```
 
-These paths show only the items that you share, and password links still need their password.
+These paths show only the items that you share. Share links with a password still need their
+password, and midden locks out an address after 10 wrong passwords in 15 minutes.
 
 ### Settings
 
@@ -66,11 +67,10 @@ again in a few seconds.
 
 | Name                        | What it does                                                                |
 | --------------------------- | --------------------------------------------------------------------------- |
-| `MIDDEN_PASSWORD`           | Turns on password sign-in. Use a secret. A new password signs out all sessions. |
-| `MIDDEN_ACCESS_TEAM_DOMAIN` | Turns on Access sign-in, with `MIDDEN_ACCESS_AUD`.                          |
-| `MIDDEN_ACCESS_AUD`         | The audience tag of the Access application.                                 |
+| `MIDDEN_ACCESS_TEAM_DOMAIN` | Your Access team. Required to sign in.                                      |
+| `MIDDEN_ACCESS_AUD`         | The audience tag of the Access application. Required to sign in.            |
 | `MIDDEN_ALLOWED_EMAILS`     | A comma-separated list. Only these Access users can sign in. Without it, every user that your Access policy lets in can sign in. |
-| `MIDDEN_SESSION_SECRET`     | The key that signs cookies, 32 characters or more. Without it, midden makes a key and keeps it in D1. |
+| `MIDDEN_SESSION_SECRET`     | The key that signs share-link cookies, 32 characters or more. Without it, midden makes a key and keeps it in D1. |
 
 `wrangler.jsonc` sets `keep_vars`, so a deploy does not remove the variables that you set in the
 dashboard.
@@ -100,9 +100,12 @@ Local development runs fully on your computer. Wrangler makes local copies of D1
 
 ```sh
 bun install
-cp .dev.vars.example .dev.vars        # set MIDDEN_PASSWORD
 bun run dev                           # http://localhost:3000
 ```
+
+The dev server has no Access in front of it, so it signs you in as `dev@localhost`. To see the
+setup and sign-in screens, put `MIDDEN_DEV_EMAIL=` (empty) in a `.dev.vars` file. A production
+build never contains this test user.
 
 Other commands:
 
@@ -112,7 +115,6 @@ bun run build
 scripts/smoke-test.sh                 # checks the API end to end; needs `bun run dev`
 ```
 
-The smoke test signs in with `MIDDEN_TEST_PASSWORD` (default `midden-dev`).
 
 ### Layout
 

@@ -47,10 +47,11 @@ export interface PublicShare {
 
 export interface Me {
   authenticated: boolean;
-  method: "access" | "password" | null;
+  /** "dev" is the test user of local development. */
+  method: "access" | "dev" | null;
   email: string | null;
-  /** The sign-in methods that the owner set up. */
-  signIn: { password: boolean; access: boolean };
+  /** True when the Worker has the Access team and audience. */
+  accessReady: boolean;
   /** An Access user that is not in MIDDEN_ALLOWED_EMAILS. */
   denied: string | null;
   /** Access values from the request, before midden knows them. Only for the setup page. */
